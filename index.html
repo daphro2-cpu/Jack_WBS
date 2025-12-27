@@ -1,108 +1,39 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Sentence Order Game – Improved Feedback</title>
-<style>
-  body{font-family:Arial;max-width:900px;margin:20px auto;}
-  #chunks{margin:10px 0;}
-  .chunk-btn{padding:6px 12px;margin:4px;border-radius:6px;border:1px solid #333;background:#fff;cursor:pointer;font-size:16px;}
-  .chunk-btn.used{opacity:0.28;cursor:not-allowed;}
-  .correct-flash{background:#b6ffb6 !important;}
-  .wrong-flash{background:#ffb6b6 !important;}
-  #answer{border:1px dashed #666;min-height:40px;padding:6px;margin-top:10px;font-size:18px;}
-  #feedback{margin-top:10px;font-weight:bold;}
-</style>
-</head>
-<body>
+// ======== SMART CLUE (Does not give the answer directly) ========
+function giveClue() {
+  const sentence = sentences[currentIndex].chunksInOrder;
+  const nextPart = sentence[studentOrder.length];
+  const nextIndex = studentOrder.length;
 
-<h2>Sentence <span id="num"></span></h2>
-<p><b>Click the parts below in the correct order:</b></p>
+  let clueMsg = "";
 
-<div id="chunks"></div>
-<p><b>Your sentence:</b></p>
-<div id="answer"></div>
-
-<button id="clue">Clue</button>
-<button id="reset">Reset</button>
-<button id="next">Next</button><br><br>
-<div id="feedback"></div>
-<div id="hint"></div>
-
-<script>
-// Sentences data
-const sentences = [
-  ["Jack bought","the same","electronic dictionary","as his sister","did","to learn new words."],
-  ["Tropical habitats are","much more","humid","than","other habitats","are."],
-  ["The elevators","in Taipei 101","can bring you up","faster than","those in other buildings","can."]
-];
-
-let index = 0, answer = [], order=[];
-
-const num = document.getElementById("num");
-const area = document.getElementById("chunks");
-const show = document.getElementById("answer");
-const feedback = document.getElementById("feedback");
-const hint = document.getElementById("hint");
-
-function load(){
-  answer=[];
-  feedback.textContent="";
-  hint.textContent="";
-  show.textContent="";
-  num.textContent=index+1;
-
-  order=[...sentences[index]].sort(()=>Math.random()-0.5);
-  area.innerHTML="";
-  order.forEach(word=>{
-    let btn=document.createElement("button");
-    btn.textContent=word;
-    btn.className="chunk-btn";
-    btn.onclick=()=> select(word,btn);
-    area.appendChild(btn);
-  });
-}
-
-function select(word,btn){
-  const correct = sentences[index][answer.length]; // next required word
-
-  if(word===correct){
-    answer.push(word);
-    btn.classList.add("used","correct-flash");
-    show.textContent=answer.join(" ");
-    feedback.textContent="Good!";
-    feedback.style.color="green";
-
-    setTimeout(()=>btn.classList.remove("correct-flash"),200);
-
-    if(answer.length===sentences[index].length){
-      feedback.textContent="Sentence complete!";
-      feedback.style.color="blue";
-    }
-  } else {
-    // WRONG → do NOT add to answer
-    btn.classList.add("wrong-flash");
-    feedback.textContent="Incorrect! Try a different one.";
-    feedback.style.color="red";
-
-    setTimeout(()=>btn.classList.remove("wrong-flash"),350); // flash but stays clickable
+  if (currentIndex === 0) { // Sentence 1 clues
+    if (nextIndex === 0) clueMsg = "Think: who is the sentence about?";
+    else if (nextIndex === 1) clueMsg = "What did Jack buy? Look for the phrase that fits after the verb.";
+    else if (nextIndex === 2) clueMsg = "Choose a phrase that describes *what kind* of dictionary.*";
+    else if (nextIndex === 3) clueMsg = "Now connect it with who also has this item.";
+    else if (nextIndex === 4) clueMsg = "A short helping verb must follow here.";
+    else if (nextIndex === 5) clueMsg = "Finish with the purpose – why did he buy it?";
   }
+
+  if (currentIndex === 1) { // Sentence 2 clues
+    if (nextIndex === 0) clueMsg = "Start by naming the habitat.";
+    else if (nextIndex === 1) clueMsg = "Comparisons use words like *more* / *less* next.";
+    else if (nextIndex === 2) clueMsg = "Which adjective describes the climate?";
+    else if (nextIndex === 3) clueMsg = "Compare two things → look for a comparison linker.";
+    else if (nextIndex === 4) clueMsg = "Now mention the second habitat.";
+    else if (nextIndex === 5) clueMsg = "Finish with the verb to complete the comparison.";
+  }
+
+  if (currentIndex === 2) { // Sentence 3 clues
+    if (nextIndex === 0) clueMsg = "Start with the machine being described.";
+    else if (nextIndex === 1) clueMsg = "Where are these elevators found?";
+    else if (nextIndex === 2) clueMsg = "Now describe what they can do.";
+    else if (nextIndex === 3) clueMsg = "Look for a comparison word again.";
+    else if (nextIndex === 4) clueMsg = "Compare to elevators in other places.";
+    else if (nextIndex === 5) clueMsg = "End with the helper verb.";
+  }
+
+  feedbackDiv.textContent = "Clue: " + clueMsg;
+  feedbackDiv.style.color = "#0066cc";
+  playClickSound();
 }
-
-document.getElementById("clue").onclick=()=>{
-  const next = sentences[index][answer.length];
-  feedback.textContent="Clue → Next part is: " + next;
-  feedback.style.color="#0055aa";
-}
-
-document.getElementById("reset").onclick=load;
-document.getElementById("next").onclick=()=>{
-  index=(index+1)%sentences.length;
-  load();
-};
-
-load();
-</script>
-
-</body>
-</html>
