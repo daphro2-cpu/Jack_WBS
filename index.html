@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sentence Order Game with Sound</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 900px;
+      margin: 20px auto;
+      line-height: 1.6;
+    }
+    h1 {
+      text-align: center;
+    }
+    #game-container {
+      border: 1px solid #ccc;
+      padding: 16px;
+      border-radius: 8px;
+    }
+    .sentence-info {
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    #chunks {
+      margin: 10px 0;
+    }
+    .chunk-btn {
+      padding: 6px 10px;
+      margin: 4px;
+      border-radius: 6px;
+      border: 1px solid #333;
+      background: #f7f7f7;
+      cursor: pointer;
+    }
+    .chunk-btn.used {
+      opacity: 0.25;
+      cursor: default;
+    }
+    #answer {
+      min-height: 40px;
+      border: 1px dashed #888;
+      padding: 6px;
+      border-radius: 6px;
+      margin-top: 4px;
+    }
+    button {
+      padding: 7px 12px;
+      margin-right: 6px;
+      margin-top: 4px;
+    }
+    #feedback {
+      font-weight: bold;
+      margin-top: 10px;
+    }
+    #hint {
+      font-style: italic;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Put the Words in Order</h1>
+
+  <div id="game-container">
+    <div class="sentence-info" id="sentence-label"></div>
+
+    <strong>Click the parts below in the correct order:</strong>
+    <div id="chunks"></div>
+
+    <strong>Your sentence:</strong>
+    <div id="answer"></div>
+
+    <div>
+      <button id="check-btn">Check</button>
+      <button id="undo-btn">Undo last</button>
+      <button id="reset-btn">Reset</button>
+      <button id="next-btn">Next</button>
+    </div>
+
+    <div id="feedback"></div>
+    <div id="hint"></div>
+  </div>
+
+  <script>
+    // ---------- SIMPLE SOUND EFFECTS (Web Audio) ----------
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    const audioCtx = new AudioCtx();
+
+    function playTone(freq, duration, type = "sine") {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.type = type;
+      osc.frequency.value = freq;
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      const now = audioCtx.currentTime;
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.3, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+      osc.start(now);
+      osc.stop(now + duration + 0.05);
+    }
+
+    function playClickSound() {
+      playTone(600, 0.06, "square");
+    }
+
+    function playCorrectSound() {
+      // two quick notes up
+      playTone(700, 0.1, "triangle");
+      setTimeout(() => playTone(950, 0.12, "triangle"), 120);
+    }
+
+    function playWrongSound() {
+      // short low buzz
+      playTone(200, 0.18, "sawtooth");
+    }
+
+    // ---------- SENTENCE GAME LOGIC ----------
+    const sentences = [
+      {
+        label: "1",
+        chunksInOrder: [
+          "Jack bought",
+          "the same",
+          "electronic dictionary",
+          "as his sister",
+          "did",
+          "to learn new words."
+        ],
+        helpText:
+          "Hint: Start with “Jack bought …” and keep “the same electronic dictionary” together."
+      },
+      {
+        label: "2",
+        chunksInOrder: [
+          "Tropical habitats are",
+          "much more",
+          "humid",
+          "than",
+          "other habitats",
+          "are."
+        ],
+        helpText:
+          "Hint: Think of the pattern: “A are much more … than B are.”"
+      },
+      {
+        label: "3",
+        chunksInOrder: [
+          "The elevators",
+          "in Taipei 101",
+          "can bring you up",
+          "faster than",
+          "those in other buildings",
+          "can."
+        ],
+        helpText:
+          "Hint: Start with “The elevators in Taipei 101 …” and compare them to “those in other buildings”."
+      }
+    ];
+
+    let currentIndex = 0;
+    let currentOrder = [];
+    let studentOrder = [];
+
+    const sentenceLabel = document.getElementById("sentence-label");
+    const chunksDiv = document.getElementById("chunks");
+    const answerDiv = document.getElementById("answer");
+    const feedbackDiv = document.getElementById("feedback");
+    const hintDiv = document.getElementById("hint");
+    const checkBtn = document.getElementById("check-btn");
+    const undoBtn = document.getElementById("undo-btn");
+    const resetBtn = document.getElementById("reset-btn");
+    const nextBtn = document.getElementById("next-btn");
+
+    function shuffle(array) {
+      const copy = array.slice();
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    }
+
+    function loadSentence(index) {
+      const data = sentences[index];
+      sentenceLabel.textContent = "Sentence " + data.label;
+      feedbackDiv.textContent = "";
+      hintDiv.textContent = "";
+      studentOrder = [];
+      answerDiv.textContent = "";
+
+      currentOrder = shuffle(data.chunksInOrder);
+      chunksDiv.innerHTML = "";
+
+      currentOrder.forEach((chunk) => {
+        const btn = document.createElement("button");
+        btn.textContent = chunk;
+        btn.className = "chunk-btn";
+        btn.addEventListener("click", () => onChunkClick(chunk, btn));
+        chunksDiv.appendChild(btn);
+      });
+    }
+
+    function onChunkClick(chunk, btn) {
+      if (btn.classList.contains("used")) return;
+
+      playClickSound();
+      studentOrder.push(chunk);
+      btn.classList.add("used");
+      updateAnswerDisplay();
+      feedbackDiv.textContent = "";
+      hintDiv.textContent = "";
+    }
+
+    function updateAnswerDisplay() {
+      answerDiv.textContent = studentOrder.join(" ");
+    }
+
+    function checkAnswer() {
+      const correct = sentences[currentIndex].chunksInOrder;
+      if (studentOrder.length < correct.length) {
+        feedbackDiv.textContent =
+          "Not finished yet. You still have " +
+          (correct.length - studentOrder.length) +
+          " part(s) to use.";
+        hintDiv.textContent = "";
+        playWrongSound();
+        return;
+      }
+
+      let firstWrongIndex = -1;
+      for (let i = 0; i < correct.length; i++) {
+        if (studentOrder[i] !== correct[i]) {
+          firstWrongIndex = i;
+          break;
+        }
+      }
+
+      if (firstWrongIndex === -1) {
+        feedbackDiv.textContent = "Excellent! Your sentence is correct.";
+        hintDiv.textContent = "";
+        playCorrectSound();
+      } else {
+        feedbackDiv.textContent = "Almost! There is a mistake in your order.";
+        const expected = correct[firstWrongIndex];
+        const actual = studentOrder[firstWrongIndex];
+        hintDiv.textContent =
+          "Check this part of your sentence: you used “" +
+          actual +
+          "”, but here it should be “" +
+          expected +
+          "”. " +
+          sentences[currentIndex].helpText;
+        playWrongSound();
+      }
+    }
+
+    function undoLast() {
+      if (studentOrder.length === 0) return;
+      const lastChunk = studentOrder.pop();
+      updateAnswerDisplay();
+      document.querySelectorAll(".chunk-btn").forEach((btn) => {
+        if (btn.textContent === lastChunk && btn.classList.contains("used")) {
+          btn.classList.remove("used");
+        }
+      });
+      feedbackDiv.textContent = "";
+      hintDiv.textContent = "";
+      playWrongSound(); // small "oops" sound
+    }
+
+    function resetSentence() {
+      loadSentence(currentIndex);
+    }
+
+    function nextSentence() {
+      currentIndex++;
+      if (currentIndex >= sentences.length) currentIndex = 0;
+      loadSentence(currentIndex);
+    }
+
+    checkBtn.addEventListener("click", checkAnswer);
+    undoBtn.addEventListener("click", undoLast);
+    resetBtn.addEventListener("click", resetSentence);
+    nextBtn.addEventListener("click", nextSentence);
+
+    // Start game
+    loadSentence(currentIndex);
+  </script>
+</body>
+</html>
