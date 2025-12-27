@@ -287,7 +287,8 @@
       }
 
       const clueText =
-        data.clues[nextIndex] || "Think about what should come next in the idea.";
+        data.clues[nextIndex] ||
+        "Think about the meaning and what should come next.";
       feedbackDiv.textContent = "Clue: " + clueText;
       feedbackDiv.style.color = "#0066cc";
       hintDiv.textContent = "";
@@ -311,8 +312,7 @@
       feedbackDiv.style.color = "#0000aa";
       hintDiv.textContent = "";
 
-      const buttons = document.querySelectorAll(".chunk-btn");
-      buttons.forEach((btn) => {
+      document.querySelectorAll(".chunk-btn").forEach((btn) => {
         btn.classList.add("used");
       });
     }
