@@ -1,39 +1,329 @@
-// ======== SMART CLUE (Does not give the answer directly) ========
-function giveClue() {
-  const sentence = sentences[currentIndex].chunksInOrder;
-  const nextPart = sentence[studentOrder.length];
-  const nextIndex = studentOrder.length;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sentence Order Game – Step by Step</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 900px;
+      margin: 20px auto;
+      line-height: 1.6;
+    }
+    h1 {
+      text-align: center;
+    }
+    #game-container {
+      border: 1px solid #ccc;
+      padding: 16px;
+      border-radius: 8px;
+    }
+    .sentence-info {
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    #chunks {
+      margin: 10px 0;
+    }
+    .chunk-btn {
+      padding: 6px 10px;
+      margin: 4px;
+      border-radius: 6px;
+      border: 1px solid #333;
+      background: #f7f7f7;
+      cursor: pointer;
+      transition: background-color 0.2s, transform 0.1s;
+      font-size: 16px;
+    }
+    .chunk-btn.used {
+      opacity: 0.25;
+      cursor: default;
+    }
+    .chunk-btn.correct-flash {
+      background-color: #c8f7c5;
+      transform: scale(1.04);
+    }
+    .chunk-btn.wrong-flash {
+      background-color: #f7c5c5;
+      transform: scale(0.96);
+    }
+    #answer {
+      min-height: 40px;
+      border: 1px dashed #888;
+      padding: 6px;
+      border-radius: 6px;
+      margin-top: 4px;
+      font-size: 18px;
+    }
+    button {
+      padding: 7px 12px;
+      margin-right: 6px;
+      margin-top: 4px;
+    }
+    #feedback {
+      font-weight: bold;
+      margin-top: 10px;
+    }
+    #hint {
+      font-style: italic;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Put the Words in Order</h1>
 
-  let clueMsg = "";
+  <div id="game-container">
+    <div class="sentence-info" id="sentence-label"></div>
 
-  if (currentIndex === 0) { // Sentence 1 clues
-    if (nextIndex === 0) clueMsg = "Think: who is the sentence about?";
-    else if (nextIndex === 1) clueMsg = "What did Jack buy? Look for the phrase that fits after the verb.";
-    else if (nextIndex === 2) clueMsg = "Choose a phrase that describes *what kind* of dictionary.*";
-    else if (nextIndex === 3) clueMsg = "Now connect it with who also has this item.";
-    else if (nextIndex === 4) clueMsg = "A short helping verb must follow here.";
-    else if (nextIndex === 5) clueMsg = "Finish with the purpose – why did he buy it?";
-  }
+    <strong>Click the parts below in the correct order:</strong>
+    <div id="chunks"></div>
 
-  if (currentIndex === 1) { // Sentence 2 clues
-    if (nextIndex === 0) clueMsg = "Start by naming the habitat.";
-    else if (nextIndex === 1) clueMsg = "Comparisons use words like *more* / *less* next.";
-    else if (nextIndex === 2) clueMsg = "Which adjective describes the climate?";
-    else if (nextIndex === 3) clueMsg = "Compare two things → look for a comparison linker.";
-    else if (nextIndex === 4) clueMsg = "Now mention the second habitat.";
-    else if (nextIndex === 5) clueMsg = "Finish with the verb to complete the comparison.";
-  }
+    <strong>Your sentence:</strong>
+    <div id="answer"></div>
 
-  if (currentIndex === 2) { // Sentence 3 clues
-    if (nextIndex === 0) clueMsg = "Start with the machine being described.";
-    else if (nextIndex === 1) clueMsg = "Where are these elevators found?";
-    else if (nextIndex === 2) clueMsg = "Now describe what they can do.";
-    else if (nextIndex === 3) clueMsg = "Look for a comparison word again.";
-    else if (nextIndex === 4) clueMsg = "Compare to elevators in other places.";
-    else if (nextIndex === 5) clueMsg = "End with the helper verb.";
-  }
+    <div>
+      <button id="clue-btn">Clue</button>
+      <button id="reset-btn">Reset</button>
+      <button id="next-btn">Next sentence</button>
+      <button id="show-btn">Show correct answer</button>
+    </div>
 
-  feedbackDiv.textContent = "Clue: " + clueMsg;
-  feedbackDiv.style.color = "#0066cc";
-  playClickSound();
-}
+    <div id="feedback"></div>
+    <div id="hint"></div>
+  </div>
+
+  <script>
+    // ----------- Simple sound using Web Audio -----------
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    const audioCtx = new AudioCtx();
+
+    function playTone(freq, duration, type = "sine", volume = 0.3) {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.value = freq;
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      const now = audioCtx.currentTime;
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(volume, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+      osc.start(now);
+      osc.stop(now + duration + 0.05);
+    }
+
+    function playClickSound() {
+      playTone(650, 0.06, "square", 0.15);
+    }
+
+    function playStepCorrectSound() {
+      playTone(800, 0.08, "triangle", 0.25);
+    }
+
+    function playFinishedSound() {
+      playTone(700, 0.1, "triangle", 0.3);
+      setTimeout(() => playTone(950, 0.15, "triangle", 0.3), 130);
+    }
+
+    function playWrongSound() {
+      playTone(220, 0.2, "sawtooth", 0.3);
+    }
+
+    // ----------- Sentences & clues -----------
+    const sentences = [
+      {
+        label: "1",
+        chunksInOrder: [
+          "Jack bought",
+          "the same",
+          "electronic dictionary",
+          "as his sister",
+          "did",
+          "to learn new words."
+        ],
+        clues: [
+          "Think: who is the sentence about? Choose the subject.",
+          "What did Jack do? Choose the action part.",
+          "Now add more information about what he bought.",
+          "Connect it with who also has this dictionary.",
+          "A short helping verb comes next.",
+          "Finish with the purpose – why he bought it."
+        ]
+      },
+      {
+        label: "2",
+        chunksInOrder: [
+          "Tropical habitats are",
+          "much more",
+          "humid",
+          "than",
+          "other habitats",
+          "are."
+        ],
+        clues: [
+          "Start by naming which habitats we are talking about.",
+          "Comparisons often use words like 'much more' or 'much less' next.",
+          "Choose the adjective that describes the climate.",
+          "Now you need the comparison linker.",
+          "Mention the second group of habitats.",
+          "End with the verb to complete the comparison."
+        ]
+      },
+      {
+        label: "3",
+        chunksInOrder: [
+          "The elevators",
+          "in Taipei 101",
+          "can bring you up",
+          "faster than",
+          "those in other buildings",
+          "can."
+        ],
+        clues: [
+          "Start with the machine you are describing.",
+          "Add the place where these elevators are.",
+          "Say what these elevators are able to do.",
+          "Now add a comparison word.",
+          "Compare them with elevators in other places.",
+          "End with a short helper verb."
+        ]
+      }
+    ];
+
+    let currentIndex = 0;
+    let studentOrder = [];
+
+    const sentenceLabel = document.getElementById("sentence-label");
+    const chunksDiv = document.getElementById("chunks");
+    const answerDiv = document.getElementById("answer");
+    const feedbackDiv = document.getElementById("feedback");
+    const hintDiv = document.getElementById("hint");
+    const clueBtn = document.getElementById("clue-btn");
+    const resetBtn = document.getElementById("reset-btn");
+    const nextBtn = document.getElementById("next-btn");
+    const showBtn = document.getElementById("show-btn");
+
+    function shuffle(array) {
+      const copy = array.slice();
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    }
+
+    function loadSentence(index) {
+      const data = sentences[index];
+      sentenceLabel.textContent = "Sentence " + data.label;
+      feedbackDiv.textContent = "";
+      feedbackDiv.style.color = "#000";
+      hintDiv.textContent = "";
+      studentOrder = [];
+      answerDiv.textContent = "";
+
+      const shuffled = shuffle(data.chunksInOrder);
+      chunksDiv.innerHTML = "";
+      shuffled.forEach((chunk) => {
+        const btn = document.createElement("button");
+        btn.textContent = chunk;
+        btn.className = "chunk-btn";
+        btn.addEventListener("click", () => onChunkClick(chunk, btn));
+        chunksDiv.appendChild(btn);
+      });
+    }
+
+    function onChunkClick(chunk, btn) {
+      if (btn.classList.contains("used")) return;
+
+      const correctSentence = sentences[currentIndex].chunksInOrder;
+      const nextIndex = studentOrder.length;
+      const expected = correctSentence[nextIndex];
+
+      playClickSound();
+
+      if (chunk === expected) {
+        // correct next part
+        studentOrder.push(chunk);
+        btn.classList.add("used", "correct-flash");
+        setTimeout(() => btn.classList.remove("correct-flash"), 200);
+
+        updateAnswerDisplay();
+        feedbackDiv.textContent = "Correct! Choose the next part.";
+        feedbackDiv.style.color = "#007700";
+        hintDiv.textContent = "";
+
+        if (studentOrder.length === correctSentence.length) {
+          feedbackDiv.textContent = "Great job! The whole sentence is correct.";
+          feedbackDiv.style.color = "#0000aa";
+          playFinishedSound();
+        } else {
+          playStepCorrectSound();
+        }
+      } else {
+        // wrong choice – do NOT add to sentence
+        btn.classList.add("wrong-flash");
+        setTimeout(() => btn.classList.remove("wrong-flash"), 250);
+        feedbackDiv.textContent = "Incorrect. Try a different part for this place.";
+        feedbackDiv.style.color = "#cc0000";
+        hintDiv.textContent = "Need help? Click the Clue button.";
+        playWrongSound();
+      }
+    }
+
+    function updateAnswerDisplay() {
+      answerDiv.textContent = studentOrder.join(" ");
+    }
+
+    function giveClue() {
+      const data = sentences[currentIndex];
+      const nextIndex = studentOrder.length;
+
+      if (nextIndex >= data.chunksInOrder.length) {
+        feedbackDiv.textContent = "The sentence is already complete.";
+        feedbackDiv.style.color = "#0000aa";
+        hintDiv.textContent = "";
+        return;
+      }
+
+      const clueText =
+        data.clues[nextIndex] || "Think about what should come next in the idea.";
+      feedbackDiv.textContent = "Clue: " + clueText;
+      feedbackDiv.style.color = "#0066cc";
+      hintDiv.textContent = "";
+      playClickSound();
+    }
+
+    function resetSentence() {
+      loadSentence(currentIndex);
+    }
+
+    function nextSentence() {
+      currentIndex = (currentIndex + 1) % sentences.length;
+      loadSentence(currentIndex);
+    }
+
+    function showAnswer() {
+      const data = sentences[currentIndex];
+      studentOrder = data.chunksInOrder.slice();
+      updateAnswerDisplay();
+      feedbackDiv.textContent = "This is the correct sentence.";
+      feedbackDiv.style.color = "#0000aa";
+      hintDiv.textContent = "";
+
+      const buttons = document.querySelectorAll(".chunk-btn");
+      buttons.forEach((btn) => {
+        btn.classList.add("used");
+      });
+    }
+
+    clueBtn.addEventListener("click", giveClue);
+    resetBtn.addEventListener("click", resetSentence);
+    nextBtn.addEventListener("click", nextSentence);
+    showBtn.addEventListener("click", showAnswer);
+
+    // Start first sentence
+    loadSentence(currentIndex);
+  </script>
+</body>
+</html>
